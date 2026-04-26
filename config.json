@@ -3,32 +3,38 @@
     "openai": {
       "label": "OpenAI",
       "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-      "apiKeyUrl": "https://platform.openai.com/api-keys"
+      "apiKeyUrl": "https://platform.openai.com/api-keys",
+      "imageGeneration": true
     },
     "anthropic": {
       "label": "Anthropic",
       "models": ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"],
-      "apiKeyUrl": "https://console.anthropic.com/settings/keys"
+      "apiKeyUrl": "https://console.anthropic.com/settings/keys",
+      "imageGeneration": false
     },
     "alibaba": {
       "label": "Alibaba",
       "models": ["qwen-max", "qwen-plus", "qwen-turbo"],
-      "apiKeyUrl": "https://bailian.console.aliyun.com/?apiKey=1"
+      "apiKeyUrl": "https://www.alibabacloud.com/help/en/model-studio/get-api-key",
+      "imageGeneration": false
     },
     "deepseek": {
       "label": "DeepSeek",
       "models": ["deepseek-chat", "deepseek-reasoner"],
-      "apiKeyUrl": "https://platform.deepseek.com/api_keys"
+      "apiKeyUrl": "https://platform.deepseek.com/api_keys",
+      "imageGeneration": false
     },
     "meta": {
       "label": "Meta",
       "models": ["meta-llama/Llama-3.3-70B-Instruct", "meta-llama/Llama-3.1-8B-Instruct"],
-      "apiKeyUrl": "https://llama.developer.meta.com/docs/api-keys"
+      "apiKeyUrl": "https://llama.developer.meta.com/docs/api-keys",
+      "imageGeneration": false
     },
     "google": {
       "label": "Google",
       "models": ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"],
-      "apiKeyUrl": "https://aistudio.google.com/apikey"
+      "apiKeyUrl": "https://aistudio.google.com/apikey",
+      "imageGeneration": true
     }
   }
 }

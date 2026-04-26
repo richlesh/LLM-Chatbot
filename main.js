@@ -14,6 +14,7 @@ app.setAboutPanelOptions({
   applicationName: "LLM Chatbot",
   applicationVersion: "1.0",
   credits: `by Richard Lesh\nBuilt with Electron v${process.versions.electron}`,
+  website: "https://github.com/richlesh/LLM-Chatbot",
   iconImage: appIcon
 });
 
@@ -34,12 +35,32 @@ function createWindow() {
   return win;
 }
 
+function showAbout() {
+  const aboutWin = new BrowserWindow({
+    width: 320,
+    height: 340,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    parent: mainWin,
+    modal: true,
+    icon: appIcon,
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+  aboutWin.setMenuBarVisibility(false);
+  aboutWin.loadFile("about.html");
+  aboutWin.webContents.once("did-finish-load", () => {
+    aboutWin.webContents.send("icon-path", path.join(__dirname, "app_icon.png"));
+  });
+  ipcMain.handleOnce("close-about", () => aboutWin.close());
+}
+
 function buildMenu() {
   const template = [
     {
       label: app.name,
       submenu: [
-        { role: "about" },
+        { label: "About LLM Chatbot", click: showAbout },
         { type: "separator" },
         { label: "Settings…", click: openSettings },
         { type: "separator" },
@@ -118,28 +139,47 @@ ipcMain.handle("save-chat-dialog", async (_event, data) => {
   return true;
 });
 
-ipcMain.handle("fetch-models", async (_event, { vendor, apiKey }) => {
-  try {
-    const baseURLs = {
-      alibaba:  "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      deepseek: "https://api.deepseek.com",
-      meta:     "https://api.llama.com/compat/v1",
-      google:   "https://generativelanguage.googleapis.com/v1beta/openai"
-    };
-    if (vendor === "anthropic") {
-      const client = new Anthropic({ apiKey });
-      const res = await client.models.list();
-      return res.data.map(m => m.id).sort();
-    }
-    const client = new OpenAI({ apiKey, baseURL: baseURLs[vendor] });
+async function fetchModels(vendor, apiKey) {
+  const baseURLs = {
+    alibaba:  "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
+    deepseek: "https://api.deepseek.com",
+    meta:     "https://api.llama.com/compat/v1",
+    google:   "https://generativelanguage.googleapis.com/v1beta/openai"
+  };
+  if (vendor === "anthropic") {
+    const client = new Anthropic({ apiKey });
     const res = await client.models.list();
     return res.data.map(m => m.id).sort();
+  }
+  const client = new OpenAI({ apiKey, baseURL: baseURLs[vendor] });
+  const res = await client.models.list();
+  return res.data.map(m => m.id).sort();
+}
+
+ipcMain.handle("fetch-models", async (_event, { vendor, apiKey }) => {
+  try {
+    return await fetchModels(vendor, apiKey);
   } catch {
-    return null; // fall back to config.json defaults
+    return null;
+  }
+});
+
+ipcMain.handle("get-models-for-vendor", async (_event, vendor) => {
+  const { apiKeys } = load();
+  const apiKey = apiKeys?.[vendor] || "";
+  if (!apiKey) return null;
+  try {
+    return await fetchModels(vendor, apiKey);
+  } catch (e) {
+    console.error(`get-models-for-vendor [${vendor}]:`, e.message);
+    return VENDORS[vendor]?.models || null;
   }
 });
 
 ipcMain.handle("settings-get-data", () => ({ settings: load(), VENDORS }));
+
+ipcMain.handle("get-vendors-and-settings", () => ({ vendors: VENDORS, settings: load() }));
+
 
 ipcMain.handle("settings-save", (_e, newSettings) => {
   save(newSettings);
@@ -148,9 +188,12 @@ ipcMain.handle("settings-save", (_e, newSettings) => {
 
 ipcMain.handle("settings-cancel", () => settingsWin?.close());
 
-ipcMain.handle("chat", async (_event, messages) => {
-  const { vendor, model, apiKeys } = load();
-  const apiKey = apiKeys?.[vendor] || "";
+ipcMain.handle("chat", async (_event, { messages, vendor: vendorOverride, model: modelOverride }) => {
+  const settings = load();
+  const vendor = vendorOverride || settings.vendor;
+  const model  = modelOverride  || settings.model;
+  const apiKey = settings.apiKeys?.[vendor] || "";
+  if (!apiKey) throw new Error("You need to set the API key in Settings before this LLM vendor can be used.");
 
   if (vendor === "anthropic") {
     const client = new Anthropic({ apiKey });
@@ -163,7 +206,7 @@ ipcMain.handle("chat", async (_event, messages) => {
   }
 
   const baseURLs = {
-    alibaba:  "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    alibaba:  "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
     deepseek: "https://api.deepseek.com",
     meta:     "https://api.llama.com/compat/v1",
     google:   "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -175,9 +218,23 @@ ipcMain.handle("chat", async (_event, messages) => {
   return res.choices[0].message.content;
 });
 
-ipcMain.handle("chat-with-image", async (_event, { image, text }) => {
-  const { vendor, model, apiKeys } = load();
-  const apiKey = apiKeys?.[vendor] || "";
+ipcMain.handle("save-temp-image", (_event, { base64, mediaType }) => {
+  const os = require("os");
+  const ext = mediaType.split("/")[1] || "png";
+  const tempPath = path.join(os.tmpdir(), `llm-chatbot-img-${Date.now()}.${ext}`);
+  fs.writeFileSync(tempPath, Buffer.from(base64, "base64"));
+  return tempPath;
+});
+
+ipcMain.handle("chat-with-image", async (_event, { tempPath, mediaType, text, vendor: vendorOverride, model: modelOverride }) => {
+  const settings = load();
+  const vendor = vendorOverride || settings.vendor;
+  const model  = modelOverride  || settings.model;
+  const apiKey = settings.apiKeys?.[vendor] || "";
+  if (!apiKey) throw new Error("You need to set the API key in Settings before this LLM vendor can be used.");
+
+  const base64 = fs.readFileSync(tempPath).toString("base64");
+  fs.unlinkSync(tempPath);
 
   if (vendor === "anthropic") {
     const client = new Anthropic({ apiKey });
@@ -187,7 +244,7 @@ ipcMain.handle("chat-with-image", async (_event, { image, text }) => {
       messages: [{
         role: "user",
         content: [
-          { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
           { type: "text", text: text || "What is in this image?" }
         ]
       }]
@@ -195,22 +252,36 @@ ipcMain.handle("chat-with-image", async (_event, { image, text }) => {
     return res.content[0].text;
   }
 
-  const baseURLs = { alibaba: "https://dashscope.aliyuncs.com/compatible-mode/v1", deepseek: "https://api.deepseek.com", meta: "https://api.llama.com/compat/v1", google: "https://generativelanguage.googleapis.com/v1beta/openai" };
+  const baseURLs = { alibaba: "https://dashscope-us.aliyuncs.com/compatible-mode/v1", deepseek: "https://api.deepseek.com", meta: "https://api.llama.com/compat/v1", google: "https://generativelanguage.googleapis.com/v1beta/openai" };
   const client = new OpenAI({ apiKey, baseURL: baseURLs[vendor] });
   const res = await client.chat.completions.create({
     model,
     messages: [{ role: "user", content: [
       { type: "text", text: text || "What is in this image?" },
-      { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.base64}` } }
+      { type: "image_url", image_url: { url: `data:${mediaType};base64,${base64}` } }
     ]}]
   });
   return res.choices[0].message.content;
 });
 
-ipcMain.handle("generate-image", async (_event, promptText) => {
+ipcMain.handle("generate-image", async (_event, { promptText, vendor }) => {
   const { apiKeys } = load();
-  const apiKey = apiKeys?.openai || "";
-  const client = new OpenAI({ apiKey });
+  if (!apiKeys?.[vendor]) throw new Error("You need to set the API key in Settings before this LLM vendor can be used.");
+
+  if (vendor === "google") {
+    const { GoogleGenAI } = require("@google/genai");
+    const ai = new GoogleGenAI({ apiKey: apiKeys.google });
+    const res = await ai.models.generateImages({
+      model: "imagen-4.0-generate-001",
+      prompt: promptText,
+      config: { numberOfImages: 1, outputMimeType: "image/png" }
+    });
+    const b64 = res.generatedImages[0].image.imageBytes;
+    return `data:image/png;base64,${b64}`;
+  }
+
+  // OpenAI DALL-E
+  const client = new OpenAI({ apiKey: apiKeys.openai });
   const res = await client.images.generate({ model: "dall-e-3", prompt: promptText, n: 1, size: "1024x1024" });
   return res.data[0].url;
 });
@@ -222,10 +293,15 @@ ipcMain.handle("download-image", async (_event, { url, promptText }) => {
     filters: [{ name: "Images", extensions: ["png"] }]
   });
   if (!filePath) return;
-  await new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(filePath);
-    https.get(url, res => res.pipe(file).on("finish", resolve).on("error", reject));
-  });
+  if (url.startsWith("data:")) {
+    const base64 = url.split(",")[1];
+    fs.writeFileSync(filePath, Buffer.from(base64, "base64"));
+  } else {
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(filePath);
+      https.get(url, res => res.pipe(file).on("finish", resolve).on("error", reject));
+    });
+  }
 });
 
 ipcMain.handle("image-context-menu", async (_event, src) => {
