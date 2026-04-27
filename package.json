@@ -1,5 +1,5 @@
 {
-  "name": "omnillm",
+  "name": "omni-llm",
   "productName": "OmniLLM",
   "version": "1.1.0",
   "description": "OmniLLM - Chatbot for various LLMs",
@@ -15,7 +15,7 @@
     "dist:all": "npm run dist:mac:x64 && npm run dist:mac:arm64 && npm run dist:win:x64 && npm run dist:win:arm64 && npm run dist:linux:x64 && npm run dist:linux:arm64"
   },
   "build": {
-    "appId": "com.richardlesh.omnillm",
+    "appId": "com.richardlesh.omni-llm",
     "productName": "OmniLLM",
     "icon": "app_icon",
     "artifactName": "${productName}-${version}-${arch}.${ext}",

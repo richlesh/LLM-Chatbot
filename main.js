@@ -12,9 +12,9 @@ app.name = "OmniLLM";
 
 app.setAboutPanelOptions({
   applicationName: "OmniLLM",
-  applicationVersion: "1.0",
+  applicationVersion: require("./package.json").version,
   credits: `by Richard Lesh\nBuilt with Electron v${process.versions.electron}`,
-  website: "https://github.com/richlesh/LLM-Chatbot",
+  website: "https://github.com/richlesh/OmniLLM",
   iconImage: appIcon
 });
 
