@@ -926,10 +926,21 @@
     ipcRenderer.on("export-chat", async (_event, format) => {
       const tab = activeTab();
       if (!tab || tab.chatLog.length === 0) return;
-      const messages = tab.chatLog.map(entry => ({
-        role: entry.role, content: entry.content || "",
-        images: entry.images || [], generatedImage: entry.generatedImage || false
-      }));
+      const messages = [];
+      for (const entry of tab.chatLog) {
+        const msg = { role: entry.role, content: entry.content || "", images: [], generatedImage: false };
+        if (entry.generatedImageUrl) {
+          try {
+            const res = await fetch(entry.generatedImageUrl);
+            const blob = await res.blob();
+            const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = e => r(e.target.result); fr.readAsDataURL(blob); });
+            msg.images.push(dataUrl); msg.generatedImage = true;
+          } catch { msg.images.push(entry.generatedImageUrl); msg.generatedImage = true; }
+        } else {
+          msg.images = entry.images || [];
+        }
+        messages.push(msg);
+      }
       if (format === "html")     await ipcRenderer.invoke("export-html",     { messages, title: tab.title });
       if (format === "markdown") await ipcRenderer.invoke("export-markdown", { messages, title: tab.title });
       if (format === "pdf")      await ipcRenderer.invoke("export-pdf");
