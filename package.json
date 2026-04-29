@@ -35,7 +35,12 @@
       "notarize": true
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "azureSignOptions": {
+        "endpoint": "https://eus.codesigning.azure.net",
+        "account": "${env.AZURE_SIGNING_ACCOUNT}",
+        "certificateProfileName": "${env.AZURE_SIGNING_PROFILE}"
+      }
     },
     "linux": {
       "category": "Network",
