@@ -242,7 +242,7 @@ function openSettings() {
   if (settingsWin) return settingsWin.focus();
   settingsWin = new BrowserWindow({
     width: 420,
-    height: 680,
+    height: 790,
     resizable: false,
     parent: mainWin,
     modal: true,
@@ -660,8 +660,9 @@ ipcMain.handle("whisper-transcribe", async (_event, { base64, mimeType }) => {
     const transcription = await client.audio.transcriptions.create({
       model: "whisper-1",
       file: fs.createReadStream(tmpPath),
+      response_format: "text"
     });
-    return transcription.text;
+    return typeof transcription === "string" ? transcription : transcription.text;
   } finally {
     fs.unlinkSync(tmpPath);
   }

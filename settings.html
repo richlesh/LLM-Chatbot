@@ -87,6 +87,23 @@
     <select id="default-to-lang"></select>
   </div>
 
+  <!-- Color Settings -->
+  <div class="section-title">Colors</div>
+  <div style="display:flex;gap:12px;">
+    <div style="flex:1">
+      <label>Button Highlight</label>
+      <input type="color" id="accent-color" style="height:36px;padding:2px 4px;">
+    </div>
+    <div style="flex:1">
+      <label>User Prompt</label>
+      <input type="color" id="user-bubble-color" style="height:36px;padding:2px 4px;">
+    </div>
+    <div style="flex:1">
+      <label>AI Response</label>
+      <input type="color" id="ai-bubble-color" style="height:36px;padding:2px 4px;">
+    </div>
+  </div>
+
   <div class="row">
     <button id="cancel-btn">Cancel</button>
     <button id="save-btn">Save</button>
@@ -122,6 +139,9 @@
 
       document.getElementById("working-dir").value = current.workingDir || "";
       document.getElementById("brave-api-key").value = current.apiKeys["brave"] || "";
+      document.getElementById("accent-color").value      = current.accentColor    || "#5cda05";
+      document.getElementById("user-bubble-color").value = current.userBubbleColor || "#5cda05";
+      document.getElementById("ai-bubble-color").value   = current.aiBubbleColor   || "#2c2c2e";
 
       const LANGUAGES = [
         "Afrikaans","Arabic","Bengali","Bulgarian","Catalan","Chinese (Simplified)",
@@ -206,7 +226,10 @@
         apiKeys: current.apiKeys,
         defaultModels: current.defaultModels,
         workingDir: document.getElementById("working-dir").value,
-        defaultToLang: document.getElementById("default-to-lang").value
+        defaultToLang:    document.getElementById("default-to-lang").value,
+        accentColor:      document.getElementById("accent-color").value,
+        userBubbleColor:  document.getElementById("user-bubble-color").value,
+        aiBubbleColor:    document.getElementById("ai-bubble-color").value
       });
     });
 
