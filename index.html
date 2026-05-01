@@ -1001,6 +1001,13 @@
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
     });
 
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        document.querySelectorAll(".speaking").forEach(el => el.classList.remove("speaking"));
+      }
+    });
+
     prompt.addEventListener("input", () => {
       prompt.style.height = "auto";
       prompt.style.height = Math.min(prompt.scrollHeight, 120) + "px";
