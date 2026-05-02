@@ -543,10 +543,10 @@ const ANTHROPIC_TOOLS = AGENT_TOOLS.map(t => ({
   input_schema: t.function.parameters
 }));
 
-ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode }) => {
+ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode, sid }) => {
   const settings = load();
   const apiKey = settings.apiKeys?.[vendor] || "";
-  if (!apiKey) { event.sender.send("stream-error", "You need to set the API key in Settings before this LLM vendor can be used."); return; }
+  if (!apiKey) { event.sender.send("stream-error", sid, "You need to set the API key in Settings before this LLM vendor can be used."); return; }
 
   const tools = agentMode ? (vendor === "anthropic" ? ANTHROPIC_TOOLS : AGENT_TOOLS) : undefined;
 
@@ -569,7 +569,7 @@ ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode }) 
       for await (const chunk of stream) {
         if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
           fullText += chunk.delta.text;
-          event.sender.send("stream-chunk", chunk.delta.text);
+          event.sender.send("stream-chunk", sid, chunk.delta.text);
         }
         if (chunk.type === "content_block_start" && chunk.content_block?.type === "tool_use") {
           // tool call coming — collect it
@@ -578,9 +578,9 @@ ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode }) 
       const finalMsg = await stream.finalMessage();
       const toolUses = finalMsg.content.filter(b => b.type === "tool_use");
       if (toolUses.length > 0) {
-        event.sender.send("stream-tool-calls", toolUses.map(t => ({ id: t.id, name: t.name, args: t.input })));
+        event.sender.send("stream-tool-calls", sid, toolUses.map(t => ({ id: t.id, name: t.name, args: t.input })));
       } else {
-        event.sender.send("stream-done", fullText);
+        event.sender.send("stream-done", sid, fullText);
       }
     } else if (useNonStreaming) {
       // Google with tool results in history — use non-streaming
@@ -603,14 +603,14 @@ ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode }) 
       const res = await client.chat.completions.create({ model, messages: googleMessages, ...(tools ? { tools, tool_choice: "auto" } : {}) });
       const choice = res.choices[0];
       if (choice.finish_reason === "tool_calls" && choice.message.tool_calls?.length) {
-        event.sender.send("stream-tool-calls", choice.message.tool_calls.map(tc => {
+        event.sender.send("stream-tool-calls", sid, choice.message.tool_calls.map(tc => {
           let args = {};
           try { args = JSON.parse(tc.function.arguments); } catch { args = { raw: tc.function.arguments }; }
           return { id: tc.id, name: tc.function.name, args };
         }));
       } else {
         const text = choice.message.content || "";
-        event.sender.send("stream-done", text);
+        event.sender.send("stream-done", sid, text);
       }
     } else {
       const client = new OpenAI({ apiKey, baseURL: VENDORS[vendor]?.baseURL });
@@ -621,7 +621,7 @@ ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode }) 
         const delta = chunk.choices[0]?.delta;
         if (delta?.content) {
           fullText += delta.content;
-          event.sender.send("stream-chunk", delta.content);
+          event.sender.send("stream-chunk", sid, delta.content);
         }
         if (delta?.tool_calls) {
           for (const tc of delta.tool_calls) {
@@ -634,18 +634,23 @@ ipcMain.on("chat-stream", async (event, { messages, vendor, model, agentMode }) 
       }
       const toolCalls = Object.values(toolCallMap);
       if (toolCalls.length > 0) {
-        event.sender.send("stream-tool-calls", toolCalls.map(tc => {
+        event.sender.send("stream-tool-calls", sid, toolCalls.map(tc => {
           let args = {};
           try { args = JSON.parse(tc.argsRaw); } catch { args = { raw: tc.argsRaw }; }
           return { id: tc.id, name: tc.name, args };
         }));
       } else {
-        event.sender.send("stream-done", fullText);
+        event.sender.send("stream-done", sid, fullText);
       }
     }
   } catch (err) {
-    event.sender.send("stream-error", err.message);
+    event.sender.send("stream-error", sid, err.message);
   }
+});
+
+ipcMain.handle("copy-to-clipboard", (_e, text) => {
+  const { clipboard } = require("electron");
+  clipboard.writeText(text);
 });
 
 ipcMain.handle("whisper-transcribe", async (_event, { base64, mimeType }) => {
