@@ -87,6 +87,13 @@
     <select id="default-to-lang"></select>
   </div>
 
+  <!-- Display Settings -->
+  <div class="section-title">Display Settings</div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" id="display-model-activity" style="width:auto;margin:0;">
+    <label for="display-model-activity" style="margin:0;cursor:pointer;">Display Model Activity</label>
+  </div>
+
   <!-- Color Settings -->
   <div class="section-title">Colors</div>
   <div style="display:flex;gap:12px;">
@@ -158,6 +165,8 @@
         toSel.append(Object.assign(document.createElement("option"), { value: lang, textContent: lang }));
       });
       toSel.value = current.defaultToLang || "English";
+
+      document.getElementById("display-model-activity").checked = current.displayModelActivity !== false;
     });
 
     function updateLink(vendor) {
@@ -237,6 +246,7 @@
         defaultModels: current.defaultModels,
         workingDir: document.getElementById("working-dir").value,
         defaultToLang:    document.getElementById("default-to-lang").value,
+        displayModelActivity: document.getElementById("display-model-activity").checked,
         accentColor:      document.getElementById("accent-color").value,
         userBubbleColor:  document.getElementById("user-bubble-color").value,
         aiBubbleColor:    document.getElementById("ai-bubble-color").value

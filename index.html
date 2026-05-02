@@ -242,6 +242,55 @@
       font-style: italic;
     }
 
+    .agent-activity {
+      align-self: flex-start;
+      max-width: 75%;
+      background: #151f15;
+      border: 1px solid #2a3f2a;
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #b7d7b7;
+      font-size: 12px;
+    }
+    .agent-activity.error { background: #2a1a1a; border-color: #4a2a2a; color: #fca5a5; }
+    .agent-activity-header { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+    .agent-activity.error .agent-activity-header { color: #f87171; }
+    .agent-activity-detail {
+      margin-top: 6px;
+      color: #aaa;
+      background: #111;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: 'JetBrains Mono NL', monospace;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .think-block {
+      margin: 0 0 10px 0;
+      border: 1px solid #3a3a3c;
+      border-radius: 10px;
+      background: #181818;
+      overflow: hidden;
+    }
+    .think-block-title {
+      padding: 6px 10px;
+      background: #232323;
+      color: #aaa;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .think-block-body {
+      padding: 8px 10px;
+      color: #bdbdbd;
+      font-size: 13px;
+      font-style: italic;
+    }
+    .think-block-body > :first-child { margin-top: 0; }
+    .think-block-body > :last-child { margin-bottom: 0; }
+
     #input-area {
       display: flex;
       align-items: flex-end;
@@ -857,6 +906,7 @@
     // ── Vendor / model ─────────────────────────────────────────────────────────
     let allVendors = {};
     const rememberedModel = {};
+    let displayModelActivity = true;
 
     ipcRenderer.invoke("get-vendors-and-settings").then(async ({ vendors, settings, pendingLoad }) => {
       allVendors = vendors;
@@ -871,6 +921,8 @@
       // load default languages
       defaultToLang   = settings.defaultToLang   || "English";
       toLangSel.value   = defaultToLang;
+
+      displayModelActivity = settings.displayModelActivity !== false;
 
       // apply saved colors
       applyColors(settings);
@@ -1364,8 +1416,8 @@
         let reply = "";
         const sid = "s" + Date.now() + Math.random();
 
-        const onChunk = (_e, id, chunk) => { if (id !== sid) return; reply += chunk; thinkingEl.classList.remove("thinking-indicator"); thinkingEl.innerHTML = marked.parse(reply); addCodeCopyButtons(thinkingEl); if (tabId === activeTabId) chatEl.scrollTop = chatEl.scrollHeight; };
-        const onDone  = (_e, id, full)  => { if (id !== sid) return; cleanup(); finishAssistant(tab, tabId, thinkingEl, full); resolve(); };
+        const onChunk = (_e, id, chunk) => { if (id !== sid) return; reply += chunk; renderAssistantContent(thinkingEl, reply, vendor); if (tabId === activeTabId) chatEl.scrollTop = chatEl.scrollHeight; };
+        const onDone  = (_e, id, full)  => { if (id !== sid) return; cleanup(); finishAssistant(tab, tabId, thinkingEl, full, vendor); resolve(); };
         const onError = (_e, id, msg)   => { if (id !== sid) return; cleanup(); reject(new Error(msg)); };
 
         function cleanup() {
@@ -1384,14 +1436,84 @@
       });
     }
 
-    function finishAssistant(tab, tabId, el, reply) {
+    function renderAssistantContent(el, reply, vendor) {
       el.classList.remove("thinking-indicator");
-      el.innerHTML = marked.parse(reply);
+      el.innerHTML = "";
+      const text = reply || "";
+      const supportsThinking = (vendor === "ollama" || vendor === "deepseek");
+      if (supportsThinking && displayModelActivity) {
+        const lower = text.toLowerCase();
+        let pos = 0;
+        while (pos < text.length) {
+          const start = lower.indexOf("<think>", pos);
+          if (start === -1) {
+            const contentText = text.slice(pos);
+            if (contentText || !el.children.length) {
+              const content = document.createElement("div");
+              content.innerHTML = marked.parse(contentText || text);
+              el.appendChild(content);
+            }
+            break;
+          }
+          const before = text.slice(pos, start);
+          if (before) {
+            const content = document.createElement("div");
+            content.innerHTML = marked.parse(before);
+            el.appendChild(content);
+          }
+          const bodyStart = start + "<think>".length;
+          const end = lower.indexOf("</think>", bodyStart);
+          const isOpen = end === -1;
+          const thinkText = isOpen ? text.slice(bodyStart) : text.slice(bodyStart, end);
+          const think = document.createElement("div");
+          think.className = "think-block";
+          const title = document.createElement("div");
+          title.className = "think-block-title";
+          title.textContent = isOpen ? "Model thinking…" : "Model thinking";
+          const body = document.createElement("div");
+          body.className = "think-block-body";
+          body.innerHTML = marked.parse(thinkText.trim() || "…");
+          think.append(title, body);
+          el.appendChild(think);
+          if (isOpen) break;
+          pos = end + "</think>".length;
+        }
+      } else {
+        el.innerHTML = marked.parse(text);
+      }
       addCodeCopyButtons(el);
+    }
+
+    function finishAssistant(tab, tabId, el, reply, vendor) {
+      renderAssistantContent(el, reply, vendor);
       el.appendChild(makeActions(reply));
       tab.history.push({ role: "assistant", content: reply });
       tab.chatLog.push({ role: "assistant", content: reply, images: [] });
       markUnsaved(tabId);
+    }
+
+    function addAgentActivity(tabId, title, detail = "", kind = "") {
+      if (!displayModelActivity) return null;
+      const card = document.createElement("div");
+      card.className = `agent-activity ${kind}`.trim();
+      const header = document.createElement("div");
+      header.className = "agent-activity-header";
+      header.textContent = title;
+      card.appendChild(header);
+      if (detail) {
+        const body = document.createElement("div");
+        body.className = "agent-activity-detail";
+        body.textContent = detail;
+        card.appendChild(body);
+      }
+      tabs[tabId].container.appendChild(card);
+      if (tabId === activeTabId) chatEl.scrollTop = chatEl.scrollHeight;
+      return card;
+    }
+
+    function summarizeForActivity(value, max = 1200) {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      return text.length > max ? text.slice(0, max) + `\n… (${text.length - max} more characters)` : text;
     }
 
     // ── Agentic loop ─────────────────────────────────────────────────────────────
@@ -1399,9 +1521,11 @@
       const MAX_TURNS = 20;
       let turns = 0;
       let currentEl = thinkingEl;
+      addAgentActivity(tabId, "Agent started", `${vendor} / ${model}`);
 
       try {
       while (turns++ < MAX_TURNS) {
+        addAgentActivity(tabId, `Agent turn ${turns}`, "Waiting for model response…");
         const toolCalls = await new Promise((resolve, reject) => {
           let reply = "";
           const sid = "s" + Date.now() + Math.random();
@@ -1414,9 +1538,21 @@
             textEl.textContent = reply;
             if (tabId === activeTabId) chatEl.scrollTop = chatEl.scrollHeight;
           };
-          const onDone  = (_e, id, full)  => { if (id !== sid) return; cleanup(); currentEl.style.display = ""; finishAssistant(tab, tabId, currentEl, full); resolve(null); };
-          const onError = (_e, id, msg)   => { if (id !== sid) return; cleanup(); reject(new Error(msg)); };
-          const onTools = (_e, id, calls) => { if (id !== sid) return; cleanup(); if (reply) { tab.chatLog.push({ role: "assistant", content: reply, images: [] }); markUnsaved(tabId); } resolve(calls); };
+          const onDone  = (_e, id, full)  => { if (id !== sid) return; cleanup(); addAgentActivity(tabId, "Agent completed", "Final response received."); currentEl.style.display = ""; finishAssistant(tab, tabId, currentEl, full, vendor); resolve(null); };
+          const onError = (_e, id, msg)   => { if (id !== sid) return; cleanup(); addAgentActivity(tabId, "Agent error", msg, "error"); reject(new Error(msg)); };
+          const onTools = (_e, id, calls) => {
+            if (id !== sid) return;
+            cleanup();
+            addAgentActivity(tabId, `Model requested ${calls.length} tool${calls.length === 1 ? "" : "s"}`, calls.map(c => `${c.name}(${summarizeForActivity(c.args, 240)})`).join("\n\n"));
+            if (reply.trim()) {
+              currentEl.style.display = "";
+              renderAssistantContent(currentEl, reply, vendor);
+              currentEl.appendChild(makeActions(reply));
+              tab.chatLog.push({ role: "assistant", content: reply, images: [] });
+              markUnsaved(tabId);
+            }
+            resolve(calls);
+          };
 
           function cleanup() {
             ipcRenderer.removeListener("stream-chunk",      onChunk);
@@ -1443,17 +1579,20 @@
 
         // show approval cards and collect results
         const toolResults = [];
-        // hide the thinking element (icon + any streamed text) before showing approval cards
-        currentEl.style.display = "none";
+        // hide the thinking element before showing approval cards unless it contains streamed text/thinking
+        if (currentEl.classList.contains("thinking-indicator") || !currentEl.textContent.trim()) currentEl.style.display = "none";
         for (const tc of toolCalls) {
           const approved = await showToolApproval(tab, tabId, tc);
           let result;
           if (approved) {
+            addAgentActivity(tabId, `Running tool: ${tc.name}`, summarizeForActivity(tc.args, 800));
             const { ok, result: r } = await ipcRenderer.invoke("agent-execute-tool", { tool: tc.name, args: tc.args });
             result = ok ? r : `Error: ${r}`;
+            addAgentActivity(tabId, `Tool ${ok ? "completed" : "failed"}: ${tc.name}`, summarizeForActivity(result), ok ? "" : "error");
             showToolResult(tab, tabId, tc, result);
           } else {
             result = "User denied this tool call.";
+            addAgentActivity(tabId, `Tool denied: ${tc.name}`);
             showToolDenied(tab, tabId, tc);
           }
           if (vendor === "anthropic") {
@@ -1476,6 +1615,7 @@
         currentEl = addMessage("assistant", "…", tabId);
       }
       // clean up any dangling thinking indicator if loop exited without a final response
+      if (turns > MAX_TURNS) addAgentActivity(tabId, "Agent stopped", `Reached maximum turn limit (${MAX_TURNS}).`, "error");
       if (currentEl.classList.contains("thinking-indicator")) currentEl.style.display = "none";
       } catch (err) {
         currentEl.style.display = "";
@@ -1605,6 +1745,7 @@
     ipcRenderer.on("settings-updated", () => {
       ipcRenderer.invoke("get-vendors-and-settings").then(({ settings }) => {
         defaultToLang   = settings.defaultToLang   || "English";
+        displayModelActivity = settings.displayModelActivity !== false;
         applyColors(settings);
         updateMicAvailability();
       });
