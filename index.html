@@ -123,6 +123,29 @@
     .msg.assistant blockquote { border-left: 3px solid #555; padding-left: 10px; color: #aaa; margin: 6px 0; }
     .msg.assistant a { color: var(--accent); }
 
+    .link-preview {
+      position: fixed;
+      z-index: 1000;
+      background: #2a2a2c;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      pointer-events: none;
+      max-width: 300px;
+    }
+    .link-preview img {
+      width: 100%;
+      height: auto;
+      border-radius: 4px;
+      display: block;
+    }
+    .link-preview-loading {
+      color: #aaa;
+      font-size: 12px;
+      padding: 20px;
+    }
+
     .msg img { max-width: 100%; border-radius: 10px; display: block; margin-top: 6px; cursor: zoom-in; }
 
     #img-modal {
@@ -1152,6 +1175,56 @@
       ipcRenderer.invoke("open-external", a.href);
     });
 
+    // link preview on hover
+    let hoverTimeout;
+    let previewEl;
+    let prefetchPromise;
+    
+    document.addEventListener("mouseover", e => {
+      const a = e.target.closest("a");
+      if (!a || !a.href || !a.href.startsWith("http")) return;
+      
+      // Start fetching immediately
+      if (!prefetchPromise) {
+        prefetchPromise = ipcRenderer.invoke("get-link-preview", a.href);
+      }
+      
+      clearTimeout(hoverTimeout);
+      hoverTimeout = setTimeout(async () => {
+        if (previewEl) previewEl.remove();
+        previewEl = document.createElement("div");
+        previewEl.className = "link-preview";
+        previewEl.innerHTML = '<div class="link-preview-loading">Loading preview...</div>';
+        document.body.appendChild(previewEl);
+        
+        const rect = a.getBoundingClientRect();
+        previewEl.style.left = rect.left + "px";
+        previewEl.style.top = (rect.bottom + 8) + "px";
+        
+        try {
+          const imageUrl = await prefetchPromise;
+          if (imageUrl && previewEl.parentNode) {
+            previewEl.innerHTML = `<img src="${imageUrl}" alt="Preview">`;
+          } else if (previewEl.parentNode) {
+            previewEl.remove();
+          }
+        } catch {
+          if (previewEl.parentNode) previewEl.remove();
+        }
+      }, 2000);
+    });
+    
+    document.addEventListener("mouseout", e => {
+      const a = e.target.closest("a");
+      if (!a) return;
+      clearTimeout(hoverTimeout);
+      prefetchPromise = null;
+      if (previewEl) {
+        previewEl.remove();
+        previewEl = null;
+      }
+    });
+
     // right-click context menu on any image in the chat
     chatEl.addEventListener("contextmenu", e => {
       // Prevent context menu on code blocks
@@ -1578,9 +1651,8 @@
           const onChunk = (_e, id, chunk) => {
             if (id !== sid) return;
             reply += chunk;
-            let textEl = currentEl.querySelector(".thinking-text");
-            if (!textEl) { textEl = document.createElement("span"); textEl.className = "thinking-text"; currentEl.appendChild(textEl); }
-            textEl.textContent = reply;
+            currentEl.classList.remove("thinking-indicator");
+            renderAssistantContent(currentEl, reply, vendor);
             if (tabId === activeTabId) chatEl.scrollTop = chatEl.scrollHeight;
           };
           const onDone  = (_e, id, full)  => { if (id !== sid) return; cleanup(); addAgentActivity(tabId, "Agent completed", "Final response received."); currentEl.style.display = ""; finishAssistant(tab, tabId, currentEl, full, vendor); resolve(null); };

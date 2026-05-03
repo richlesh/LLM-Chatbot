@@ -264,8 +264,8 @@ ipcMain.handle("license-cancel", () => licenseWin?.close());
 function openSettings() {
   if (settingsWin) return settingsWin.focus();
   settingsWin = new BrowserWindow({
-    width: 420,
-    height: 790,
+    width: 840,
+    height: 480,
     resizable: false,
     parent: mainWin,
     modal: true,
@@ -465,6 +465,60 @@ ipcMain.handle("settings-save", (_e, newSettings) => {
 ipcMain.handle("settings-cancel", () => settingsWin?.close());
 
 ipcMain.handle("open-external", (_e, url) => openExternal(url));
+
+const linkPreviewCache = new Map();
+
+ipcMain.handle("get-link-preview", async (_e, url) => {
+  // Check cache first
+  if (linkPreviewCache.has(url)) {
+    return linkPreviewCache.get(url);
+  }
+  
+  try {
+    const response = await fetch(url, { 
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(5000)
+    });
+    const html = await response.text();
+    
+    // Try og:image first
+    const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+    if (ogMatch) {
+      linkPreviewCache.set(url, ogMatch[1]);
+      return ogMatch[1];
+    }
+    
+    // Try twitter:image
+    const twitterMatch = html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+    if (twitterMatch) {
+      linkPreviewCache.set(url, twitterMatch[1]);
+      return twitterMatch[1];
+    }
+    
+    // Fallback: capture screenshot of the page
+    const { BrowserWindow } = require("electron");
+    const screenshotWin = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      show: false,
+      webPreferences: {
+        offscreen: true
+      }
+    });
+    
+    await screenshotWin.loadURL(url);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // wait for page load
+    const image = await screenshotWin.webContents.capturePage();
+    screenshotWin.close();
+    
+    const dataUrl = image.toDataURL();
+    linkPreviewCache.set(url, dataUrl);
+    return dataUrl;
+  } catch {
+    linkPreviewCache.set(url, null);
+    return null;
+  }
+});
 
 ipcMain.handle("drop-chat-file", (_e, filePath) => {
   if (!filePath.endsWith(".chat")) return null;
