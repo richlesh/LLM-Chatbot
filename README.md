@@ -24,13 +24,13 @@ Connect to any of the following AI providers:
 - Submit with **Enter** key or the return button; **Shift+Enter** for new lines
 - Auto-growing text input
 
-### Language Translation Capability
-- Seamlessly translate text across multiple languages within chat conversations.
-- Supports real-time translation for more than 100 languages, enabling broader communication and understanding.
-
 ### Agentic Capability for Select Models
 - Certain AI models possess advanced agentic behaviors, allowing them to perform tasks autonomously.
 - Ideal for use cases that require proactive AI intervention and task management.
+
+### Language Translation Capability
+- Seamlessly translate text across multiple languages within chat conversations.
+- Supports real-time translation for more than 100 languages, enabling broader communication and understanding.
 
 ### Web Search using Brave API
 - Integrated web search functionality through the Brave Search API.
@@ -136,6 +136,7 @@ Output files are placed in the `dist/` folder.
 | DeepSeek | https://platform.deepseek.com/api_keys |
 | Alibaba | https://bailian.console.aliyun.com |
 | Meta | https://llama.developer.meta.com |
+| Brave | https://brave.com/search/api/ |
 
 ---
 
