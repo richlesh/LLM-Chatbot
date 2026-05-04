@@ -629,6 +629,19 @@
       "Spanish","Swahili","Swedish","Tamil","Telugu","Thai","Turkish","Ukrainian",
       "Urdu","Vietnamese"
     ];
+    const LANG_TAGS = {
+      "Afrikaans":"af","Arabic":"ar","Bengali":"bn","Bulgarian":"bg","Catalan":"ca",
+      "Chinese (Simplified)":"zh-CN","Chinese (Traditional)":"zh-TW","Croatian":"hr",
+      "Czech":"cs","Danish":"da","Dutch":"nl","English":"en","Estonian":"et",
+      "Finnish":"fi","French":"fr","German":"de","Greek":"el","Gujarati":"gu",
+      "Hebrew":"he","Hindi":"hi","Hungarian":"hu","Indonesian":"id","Italian":"it",
+      "Japanese":"ja","Kannada":"kn","Korean":"ko","Latvian":"lv","Lithuanian":"lt",
+      "Malay":"ms","Malayalam":"ml","Marathi":"mr","Norwegian":"nb","Persian":"fa",
+      "Polish":"pl","Portuguese":"pt","Punjabi":"pa","Romanian":"ro","Russian":"ru",
+      "Serbian":"sr","Slovak":"sk","Slovenian":"sl","Spanish":"es","Swahili":"sw",
+      "Swedish":"sv","Tamil":"ta","Telugu":"te","Thai":"th","Turkish":"tr",
+      "Ukrainian":"uk","Urdu":"ur","Vietnamese":"vi",
+    };
     let defaultToLang   = "English";
     LANGUAGES.forEach(lang => {
       toLangSel.append(Object.assign(document.createElement("option"), { value: lang, textContent: lang }));
@@ -1829,6 +1842,7 @@
           return;
         }
         const utter = new SpeechSynthesisUtterance(plainText);
+        utter.lang = LANG_TAGS[toLangSel.value] || "en";
         utter.onend = () => speak.classList.remove("speaking");
         speak.classList.add("speaking");
         speechSynthesis.speak(utter);
